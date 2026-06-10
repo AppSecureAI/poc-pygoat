@@ -779,7 +779,6 @@ def a1_broken_access_lab_1(request):
     else:
         return render(request,'Lab_2021/A1_BrokenAccessControl/broken_access_lab_1.html',{"no_creds":True})
 
-@csrf_exempt
 def a1_broken_access_lab_2(request):
     if request.user.is_authenticated:
         pass
@@ -843,7 +842,6 @@ def a1_broken_access_lab3_secret(request):
 
 ###################################################### 2021 A3: Injection
 
-@csrf_exempt
 def injection(request):
     if not request.user.is_authenticated:
         return redirect('login')
@@ -851,7 +849,6 @@ def injection(request):
     return render(request,"Lab_2021/A3_Injection/injection.html")
 
 
-@csrf_exempt
 def injection_sql_lab(request):
     if request.user.is_authenticated:
 
@@ -861,7 +858,7 @@ def injection_sql_lab(request):
         print(password)
 
         if name:
-            sql_query = "SELECT * FROM introduction_sql_lab_table WHERE id='"+name+"'AND password='"+password+"'"
+            sql_query = "SELECT * FROM introduction_sql_lab_table WHERE id=%s AND password=%s"
 
             sql_instance = sql_lab_table(id="admin", password="65079b006e85a7e798abecb99e47c154")
             sql_instance.save()
@@ -875,7 +872,7 @@ def injection_sql_lab(request):
             print(sql_query)
 
             try:
-                user = sql_lab_table.objects.raw(sql_query)
+                user = sql_lab_table.objects.raw(sql_query, [name, password])
                 user = user[0].id
                 print(user)
 
@@ -923,7 +920,9 @@ def ssrf_lab(request):
             file=request.POST["blog"]
             try :
                 dirname = os.path.dirname(__file__)
-                filename = os.path.join(dirname, file)
+                filename = os.path.realpath(os.path.join(dirname, file))
+                if not filename.startswith(os.path.realpath(dirname)):
+                    return render(request, "Lab/ssrf/ssrf_lab.html", {"blog": "No blog found"})
                 file = open(filename,"r")
                 data = file.read()
                 return render(request,"Lab/ssrf/ssrf_lab.html",{"blog":data})
@@ -960,7 +959,13 @@ def ssrf_lab2(request):
     elif request.method == "POST":
         url = request.POST["url"]
         try:
-            response = requests.get(url)
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            allowed_schemes = {"http", "https"}
+            allowed_hosts = {"localhost", "127.0.0.1"}
+            if parsed.scheme not in allowed_schemes or parsed.hostname not in allowed_hosts:
+                return render(request, "Lab/ssrf/ssrf_lab2.html", {"error": "URL not allowed"})
+            response = requests.get(url, timeout=10)
             return render(request, "Lab/ssrf/ssrf_lab2.html", {"response": response.content.decode()})
         except:
             return render(request, "Lab/ssrf/ssrf_lab2.html", {"error": "Invalid URL"})
@@ -982,11 +987,13 @@ def ssti_lab(request):
             id = str(uuid.uuid4()).split('-')[-1]
 
             blog = filter_blog(blog)
+            from markupsafe import escape
+            blog = str(escape(blog))
             prepend_code = "{% extends 'introduction/base.html' %}\
                 {% block content %}{% block title %}\
                 <title>SSTI-Blogs</title>\
                 {% endblock %}"
-            
+
             blog = prepend_code + blog + "{% endblock %}"
             new_blog = Blogs.objects.create(author = request.user, blog_id = id)
             new_blog.save() 
@@ -1023,7 +1030,7 @@ def crypto_failure_lab(request):
             username = request.POST["username"]
             password = request.POST["password"]
             try:
-                password = md5(password.encode()).hexdigest()
+                password = hashlib.scrypt(password.encode(), salt=b'pygoat_salt', n=32768, r=8, p=1, maxmem=67108864).hex()
                 user = CF_user.objects.filter(username=username,password=password).first()
                 return render(request,"Lab_2021/A2_Crypto_failur/crypto_failure_lab.html",{"user":user, "success":True,"failure":False})
             except Exception as e:
