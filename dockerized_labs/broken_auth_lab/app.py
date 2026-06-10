@@ -3,6 +3,7 @@ import hashlib
 import json
 from datetime import datetime, timedelta
 import base64
+import os
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'  # Vulnerable: Hardcoded secret key
@@ -120,4 +121,4 @@ def dashboard():
     return redirect(url_for('lab'))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)  # Vulnerable: Debug mode enabled in production 
+    app.run(host='127.0.0.1', port=5000, debug=os.environ.get('FLASK_DEBUG', 'false').lower() == 'true')
