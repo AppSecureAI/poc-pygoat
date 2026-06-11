@@ -19,7 +19,6 @@ from .views import authentication_decorator
 # 2. extract inputs form 2nd code 
 # 3. Run the code 
 # 4. get the result
-@csrf_exempt
 def ssrf_code_checker(request):
     if request.user.is_authenticated:
         if request.method == 'POST':
@@ -56,7 +55,6 @@ def ssrf_code_checker(request):
 # Insufficient Logging & Monitoring
 
 
-@csrf_exempt
 # @authentication_decorator
 def log_function_checker(request):
     if request.method == 'POST':
@@ -67,10 +65,10 @@ def log_function_checker(request):
         log_filename = os.path.join(dirname, "playground/A9/main.py")
         api_filename = os.path.join(dirname, "playground/A9/api.py")
         f = open(log_filename,"w")
-        f.write(log_code)
+        f.write(log_code.replace('\r\n', '\n').replace('\r', '\n'))
         f.close()
         f = open(api_filename,"w")
-        f.write(api_code)
+        f.write(api_code.replace('\r\n', '\n').replace('\r', '\n'))
         f.close()
         # Clearing the log file before starting the test
         f = open('test.log', 'w')
@@ -122,7 +120,6 @@ def A6_disscussion_api(request):
     except Exception as e:
         return JsonResponse({"message":"failure"},status = 400)
 
-@csrf_exempt
 def A6_disscussion_api_2(request):
     if request.method != 'POST':
         return JsonResponse({"message":"method not allowed"},status = 405)
@@ -131,7 +128,7 @@ def A6_disscussion_api_2(request):
         dirname = os.path.dirname(__file__)
         filename = os.path.join(dirname, "playground/A6/utility.py")
         f = open(filename,"w")
-        f.write(code)
+        f.write(code.replace('\r\n', '\n').replace('\r', '\n'))
         f.close()
     except:
         return JsonResponse({"message":"missing code"},status = 400)
