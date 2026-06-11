@@ -17,5 +17,9 @@ ENV PYTHONUNBUFFERED=1
 # Expose port 5000
 EXPOSE 5000
 
+# Run as non-root user
+RUN useradd --no-create-home --shell /bin/false appuser
+USER appuser
+
 # Run the application
-CMD ["python", "app.py"] 
+CMD ["python", "app.py"]
