@@ -14,6 +14,9 @@ RUN chmod +x /entrypoint.sh
 
 EXPOSE 8000
 
+RUN useradd -m -r appuser && chown -R appuser:appuser /app /entrypoint.sh
+USER appuser
+
 # Use the entrypoint script
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
