@@ -11,7 +11,8 @@ import string
 import subprocess
 import uuid
 from dataclasses import dataclass
-from hashlib import md5
+import urllib.parse
+from markupsafe import escape as markupsafe_escape
 from io import BytesIO
 from random import randint
 from xml.dom.pulldom import START_ELEMENT, parseString
@@ -851,7 +852,6 @@ def injection(request):
     return render(request,"Lab_2021/A3_Injection/injection.html")
 
 
-@csrf_exempt
 def injection_sql_lab(request):
     if request.user.is_authenticated:
 
@@ -861,7 +861,8 @@ def injection_sql_lab(request):
         print(password)
 
         if name:
-            sql_query = "SELECT * FROM introduction_sql_lab_table WHERE id='"+name+"'AND password='"+password+"'"
+            sql_query = "SELECT * FROM introduction_sql_lab_table WHERE id=%s AND password=%s"
+            sql_params = [name, password]
 
             sql_instance = sql_lab_table(id="admin", password="65079b006e85a7e798abecb99e47c154")
             sql_instance.save()
@@ -875,7 +876,7 @@ def injection_sql_lab(request):
             print(sql_query)
 
             try:
-                user = sql_lab_table.objects.raw(sql_query)
+                user = sql_lab_table.objects.raw(sql_query, sql_params)
                 user = user[0].id
                 print(user)
 
@@ -923,7 +924,9 @@ def ssrf_lab(request):
             file=request.POST["blog"]
             try :
                 dirname = os.path.dirname(__file__)
-                filename = os.path.join(dirname, file)
+                filename = os.path.realpath(os.path.join(dirname, file))
+                if not filename.startswith(os.path.realpath(dirname)):
+                    return render(request, "Lab/ssrf/ssrf_lab.html", {"blog": "No blog found"})
                 file = open(filename,"r")
                 data = file.read()
                 return render(request,"Lab/ssrf/ssrf_lab.html",{"blog":data})
@@ -960,6 +963,10 @@ def ssrf_lab2(request):
     elif request.method == "POST":
         url = request.POST["url"]
         try:
+            parsed = urllib.parse.urlparse(url)
+            allowed_hosts = {"localhost", "127.0.0.1"}
+            if parsed.scheme not in ("http", "https") or parsed.hostname not in allowed_hosts:
+                return render(request, "Lab/ssrf/ssrf_lab2.html", {"error": "Invalid URL"})
             response = requests.get(url)
             return render(request, "Lab/ssrf/ssrf_lab2.html", {"response": response.content.decode()})
         except:
@@ -981,12 +988,12 @@ def ssti_lab(request):
             blog = request.POST["blog"]
             id = str(uuid.uuid4()).split('-')[-1]
 
-            blog = filter_blog(blog)
+            blog = filter_blog(str(markupsafe_escape(blog)))
             prepend_code = "{% extends 'introduction/base.html' %}\
                 {% block content %}{% block title %}\
                 <title>SSTI-Blogs</title>\
                 {% endblock %}"
-            
+
             blog = prepend_code + blog + "{% endblock %}"
             new_blog = Blogs.objects.create(author = request.user, blog_id = id)
             new_blog.save() 
@@ -1023,7 +1030,7 @@ def crypto_failure_lab(request):
             username = request.POST["username"]
             password = request.POST["password"]
             try:
-                password = md5(password.encode()).hexdigest()
+                password = hashlib.scrypt(password.encode(), salt=username.encode(), n=32768, r=8, p=1, maxmem=67108864).hex()
                 user = CF_user.objects.filter(username=username,password=password).first()
                 return render(request,"Lab_2021/A2_Crypto_failur/crypto_failure_lab.html",{"user":user, "success":True,"failure":False})
             except Exception as e:
@@ -1073,12 +1080,12 @@ def crypto_failure_lab3(request):
                     expire = datetime.datetime.now() + datetime.timedelta(minutes=60)
                     cookie = f"{username}|{expire}"
                     response = render(request,"Lab_2021/A2_Crypto_failur/crypto_failure_lab3.html",{"success":True, "failure":False , "admin":False})
-                    response.set_cookie("cookie", cookie)
+                    response.set_cookie("cookie", cookie, secure=True, httponly=True, samesite='Lax')
                     response.status_code = 200
                     return response
                 else:
                     response = render(request,"Lab_2021/A2_Crypto_failur/crypto_failure_lab3.html",{"success":False, "failure":True})
-                    response.set_cookie("cookie", None)
+                    response.set_cookie("cookie", None, secure=True, httponly=True, samesite='Lax')
                     return response
             except:
                 return render(request,"Lab_2021/A2_Crypto_failur/crypto_failure_lab2.html",{"success":False, "failure":True})
