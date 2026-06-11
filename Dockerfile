@@ -29,5 +29,9 @@ EXPOSE 8000
 
 
 RUN python3 /app/manage.py migrate
+
+RUN groupadd --gid 1000 appgroup && useradd --uid 1000 --gid appgroup --no-create-home appuser && chown -R appuser:appgroup /app
+USER appuser
+
 WORKDIR /app
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers","6", "pygoat.wsgi"]
