@@ -12,4 +12,7 @@ ENV FLASK_RUN_HOST=0.0.0.0
 
 EXPOSE 8080
 
+RUN groupadd --system appuser && useradd --system --gid appuser --no-create-home --shell /bin/false appuser
+USER appuser
+
 CMD ["flask", "run", "--debug", "--port=8080"]
