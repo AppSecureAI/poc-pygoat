@@ -22,7 +22,7 @@ jobs:
       GROUPING_STRATEGY: smart
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
@@ -36,6 +36,6 @@ jobs:
           ./opengrep scan --sarif --sarif-output=opengrep-results.sarif --config auto . || true
 
       - name: AppSecAI Security Analysis
-        uses: AppSecureAI/automation-action@v1
+        uses: AppSecureAI/automation-action@7775a36e9f346fa83c7234a6c95d88c2960b1227 # v1
         with:
           file: opengrep-results.sarif
