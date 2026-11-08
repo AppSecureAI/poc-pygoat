@@ -20,6 +20,10 @@ jobs:
       AUTO_CREATE_PRS: "true"
       GROUPING_ENABLED: "true"
       GROUPING_STRATEGY: smart
+      GROUPING_STAGE: pre_remediation
+      MAX_VULNERABILITIES_PER_PR: "10"
+      AUTO_REMEDIATE: "true"
+      API_URL: https://gh.cloud.appsecai.io
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,7 +39,26 @@ jobs:
         run: |
           ./opengrep scan --sarif --sarif-output=opengrep-results.sarif --config auto . || true
 
-      - name: AppSecAI Security Analysis
-        uses: AppSecureAI/automation-action@v1
-        with:
-          file: opengrep-results.sarif
+      - name: Submit to AppSecAI with remediation enabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          token_response="$(curl -fsS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            --get --data-urlencode "audience=${API_URL}" "${ACTIONS_ID_TOKEN_REQUEST_URL}")"
+          token="$(jq -er '.value' <<<"${token_response}")"
+          body="$(mktemp)"
+          http="$(curl -sS -o "$body" -w '%{http_code}' -X POST "${API_URL}/api-product/submit" \
+            -H "Authorization: Bearer ${token}" \
+            -F 'file=@opengrep-results.sarif;type=application/sarif+json' \
+            -F "processing_mode=${PROCESSING_MODE}" \
+            -F "grouping_strategy=${GROUPING_STRATEGY}" \
+            -F "grouping_stage=${GROUPING_STAGE}" \
+            -F "max_vulnerabilities_per_pr=${MAX_VULNERABILITIES_PER_PR}" \
+            -F "auto_remediate=${AUTO_REMEDIATE}" \
+            -F "auto_create_prs=${AUTO_CREATE_PRS}" \
+            -F 'comment_modification_mode=basic')"
+          if [[ "${http}" != 2* ]]; then
+            echo "submit_http=${http} response=$(jq -c '{detail, error_code}' "$body" 2>/dev/null)"
+            exit 1
+          fi
+          echo "submit_http=${http} run_id=$(jq -er '.run_id' "$body") organization_id=$(jq -er '.organization_id' "$body")"
