@@ -34,7 +34,7 @@ def apply_filters():
 @app.route("/archive", methods=["POST"])
 def archive():
     name = request.form.get("name", "ledger")
-    subprocess.run("tar -czf /var/backups/%s.tgz ledger.db" % name, shell=True, check=True)
+    subprocess.run(["tar", "-czf", "/var/backups/%s.tgz" % name, "ledger.db"], shell=False, check=True)
     return jsonify({"status": "archived"})
 
 
