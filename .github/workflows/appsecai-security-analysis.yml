@@ -47,6 +47,7 @@ jobs:
           ./opengrep scan --sarif --sarif-output=opengrep-results.sarif --config auto cutover_sql_fixture/app.py
           jq -e '[.runs[].results[]] | length > 0' opengrep-results.sarif >/dev/null
           jq -e '[.runs[].results[].locations[].physicalLocation.artifactLocation.uri] | all(. == "cutover_sql_fixture/app.py")' opengrep-results.sarif >/dev/null
+          jq -e '[.runs[].results[].locations[].physicalLocation.region.startLine] | unique | length == 1' opengrep-results.sarif >/dev/null
           jq -c '{findings: ([.runs[].results[]] | length), rules: [.runs[].results[].ruleId] | unique}' opengrep-results.sarif
 
       - name: Verify ordinary lookup contract
