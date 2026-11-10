@@ -2,8 +2,12 @@ name: AppSecAI Security Analysis
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main, master]
+    inputs:
+      submit:
+        description: Submit the verified single-case scan to production
+        type: boolean
+        required: true
+        default: false
 
 permissions:
   contents: read
@@ -26,20 +30,35 @@ jobs:
       API_URL: https://gh.cloud.appsecai.io
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: 0
 
       - name: Download OpenGrep
         run: |
-          curl -sL "https://github.com/opengrep/opengrep/releases/download/${OPENGREP_VERSION}/opengrep_manylinux_x86" -o opengrep
+          set -euo pipefail
+          curl --max-time 120 -fLsS "https://github.com/opengrep/opengrep/releases/download/${OPENGREP_VERSION}/opengrep_manylinux_x86" -o opengrep
+          echo 'dbda2cd3225278cbffb37231ece1900d7022481edfaeb04e0bedb54046945dd3  opengrep' | sha256sum -c -
           chmod +x opengrep
 
       - name: Run OpenGrep
         run: |
-          ./opengrep scan --sarif --sarif-output=opengrep-results.sarif --config auto . || true
+          set -euo pipefail
+          ./opengrep scan --sarif --sarif-output=opengrep-results.sarif --config auto cutover_sql_fixture/app.py
+          jq -e '[.runs[].results[]] | length > 0' opengrep-results.sarif >/dev/null
+          jq -e '[.runs[].results[].locations[].physicalLocation.artifactLocation.uri] | all(. == "cutover_sql_fixture/app.py")' opengrep-results.sarif >/dev/null
+          jq -c '{findings: ([.runs[].results[]] | length), rules: [.runs[].results[].ruleId] | unique}' opengrep-results.sarif
+
+      - name: Verify ordinary lookup contract
+        run: |
+          set -euo pipefail
+          python3 -m venv /tmp/cutover-sql-venv
+          /tmp/cutover-sql-venv/bin/pip install -r cutover_sql_fixture/requirements.txt
+          cd cutover_sql_fixture
+          /tmp/cutover-sql-venv/bin/python -m unittest -v test_contract
 
       - name: Submit to AppSecAI with remediation enabled
+        if: inputs.submit
         shell: bash
         run: |
           set -euo pipefail
