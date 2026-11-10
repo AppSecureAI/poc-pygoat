@@ -40,5 +40,5 @@ def archive():
 
 @app.route("/rules", methods=["POST"])
 def import_rules():
-    rules = yaml.load(request.data, Loader=yaml.Loader)
+    rules = yaml.safe_load(request.data)
     return jsonify({"rules": len(rules or [])})
