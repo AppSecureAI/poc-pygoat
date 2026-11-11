@@ -1,9 +1,25 @@
-name: AppSecAI Security Analysis
+name: AppSecAI Targeted Retest
+run-name: "Targeted ${{ inputs.case }} / submit=${{ inputs.submit }}"
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main, master]
+    inputs:
+      submit:
+        description: Submit the verified selected case to production
+        type: boolean
+        required: true
+        default: false
+      case:
+        description: Original-run failure family
+        type: choice
+        required: true
+        options:
+          - bind_debug
+          - ledger_secret
+          - unscheduled_sql
+          - secure_cookie
+          - deserialize
+          - ledger_eval
 
 permissions:
   contents: read
@@ -26,20 +42,34 @@ jobs:
       API_URL: https://gh.cloud.appsecai.io
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: 0
 
+      - name: Verify original application source is unchanged
+        run: |
+          set -euo pipefail
+          baseline="$(jq -er '.baseline_commit' targeted-retest-cases.json)"
+          git diff --exit-code "$baseline" -- dockerized_labs
+
       - name: Download OpenGrep
         run: |
-          curl -sL "https://github.com/opengrep/opengrep/releases/download/${OPENGREP_VERSION}/opengrep_manylinux_x86" -o opengrep
+          set -euo pipefail
+          curl --max-time 120 -fLsS "https://github.com/opengrep/opengrep/releases/download/${OPENGREP_VERSION}/opengrep_manylinux_x86" -o opengrep
+          echo 'dbda2cd3225278cbffb37231ece1900d7022481edfaeb04e0bedb54046945dd3  opengrep' | sha256sum -c -
           chmod +x opengrep
 
-      - name: Run OpenGrep
+      - name: Scan the unchanged source and select one failure family
+        env:
+          CASE_ID: ${{ inputs.case }}
         run: |
-          ./opengrep scan --sarif --sarif-output=opengrep-results.sarif --config auto . || true
+          set -euo pipefail
+          target="$(jq -er --arg case "$CASE_ID" '.cases[$case].path' targeted-retest-cases.json)"
+          ./opengrep scan --sarif --sarif-output=full-scan.sarif --config auto "$target"
+          python3 select-targeted-findings.py "$CASE_ID" full-scan.sarif opengrep-results.sarif
 
       - name: Submit to AppSecAI with remediation enabled
+        if: inputs.submit
         shell: bash
         run: |
           set -euo pipefail

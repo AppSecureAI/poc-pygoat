@@ -1,0 +1,83 @@
+{
+  "baseline_commit": "2b64dea85d1b0a5c6262064995da46043c1ad53c",
+  "original_run": "6af32e5530750fa8fa39e0ec",
+  "cases": {
+    "bind_debug": {
+      "path": "dockerized_labs/broken_auth_lab/app.py",
+      "lines": [
+        123
+      ],
+      "rule_suffixes": [
+        "avoid_app_run_with_bad_host",
+        "debug-enabled"
+      ],
+      "expected": 2,
+      "original_status": "failed",
+      "purpose": "Unsupported functional rejection versus missing deployment contract"
+    },
+    "ledger_secret": {
+      "path": "dockerized_labs/ledger_service/app.py",
+      "lines": [
+        9
+      ],
+      "rule_suffixes": [
+        "avoid_hardcoded_config_SECRET_KEY"
+      ],
+      "expected": 1,
+      "original_status": "failed",
+      "purpose": "Required configuration change versus nonblocking provisioning documentation"
+    },
+    "unscheduled_sql": {
+      "path": "dockerized_labs/ledger_service/app.py",
+      "lines": [
+        23
+      ],
+      "rule_suffixes": [
+        "tainted-sql-string"
+      ],
+      "expected": 1,
+      "original_status": "not scheduled; true positive",
+      "purpose": "Original automation hold; preserve native proof and canonical taxonomy gates"
+    },
+    "secure_cookie": {
+      "path": "dockerized_labs/broken_auth_lab/app.py",
+      "lines": [
+        49,
+        51
+      ],
+      "rule_suffixes": [
+        "secure-set-cookie"
+      ],
+      "expected": 2,
+      "original_status": "failed",
+      "purpose": "Secure cookie versus plain HTTP deployment uncertainty"
+    },
+    "deserialize": {
+      "path": "dockerized_labs/insec_des_lab/main.py",
+      "lines": [
+        36
+      ],
+      "rule_suffixes": [
+        "insecure-deserialization",
+        "avoid-pickle"
+      ],
+      "expected": 2,
+      "original_status": "failed",
+      "purpose": "Coordinated serializer/deserializer and complete-scope coverage"
+    },
+    "ledger_eval": {
+      "path": "dockerized_labs/ledger_service/app.py",
+      "lines": [
+        30
+      ],
+      "rule_suffixes": [
+        "user-eval",
+        "eval-injection",
+        "eval-detected"
+      ],
+      "expected": 3,
+      "original_status": "failed",
+      "purpose": "Preserve legitimate expression behavior; genuine regressions stay rejected"
+    }
+  }
+}
