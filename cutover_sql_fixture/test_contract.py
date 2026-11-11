@@ -19,7 +19,7 @@ class LookupContract(unittest.TestCase):
         os.environ["APP_DATABASE"] = str(database)
         self.addCleanup(self.restore_environment, previous)
         from app import app
-        app.config.update(TESTING=True, DATABASE=str(database))
+        app.config.update(TESTING=True)
         self.client = app.test_client()
 
     @staticmethod

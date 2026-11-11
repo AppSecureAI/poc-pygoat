@@ -12,8 +12,9 @@ The fix can parameterize the lookup without changing the database schema.
 
 The database contract is owned by `initialize.py`: table `users`, integer primary
 key `id`, non-null text `name`. The initializer refuses to replace an existing
-file. The runtime must receive `APP_DATABASE` naming this pre-created SQLite file;
-missing configuration is a startup error, not a request to invent another database.
+file. The runtime must receive `APP_DATABASE` naming this pre-created SQLite file.
+The handler requires this setting for each connection; missing configuration fails
+the request rather than opening a substitute database.
 No external identity provider, templates, secret, or protocol counterpart is required.
 
 For local fixture inspection, from this directory:
