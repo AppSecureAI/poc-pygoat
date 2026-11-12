@@ -15,6 +15,18 @@
       "original_status": "failed",
       "purpose": "Unsupported functional rejection versus missing deployment contract"
     },
+    "debug_only": {
+      "path": "dockerized_labs/broken_auth_lab/app.py",
+      "lines": [
+        123
+      ],
+      "rule_suffixes": [
+        "debug-enabled"
+      ],
+      "expected": 1,
+      "original_status": "failed as part of bind_debug",
+      "purpose": "Isolate debug-mode remediation while preserving existing listener and port"
+    },
     "ledger_secret": {
       "path": "dockerized_labs/ledger_service/app.py",
       "lines": [

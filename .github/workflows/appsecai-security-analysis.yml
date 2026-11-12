@@ -15,6 +15,7 @@ on:
         required: true
         options:
           - bind_debug
+          - debug_only
           - ledger_secret
           - unscheduled_sql
           - secure_cookie
