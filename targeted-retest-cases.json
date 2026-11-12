@@ -1,0 +1,31 @@
+{
+  "baseline_commit": "d34e5e7d3d80315fbf2d23bf988484b10ba8e6b9",
+  "original_run": "6af32e5530750fa8fa39e0ec",
+  "cases": {
+    "debug_only": {
+      "path": "dockerized_labs/broken_auth_lab/app.py",
+      "lines": [
+        123
+      ],
+      "rule_suffixes": [
+        "debug-enabled"
+      ],
+      "expected": 1,
+      "original_status": "failed as part of bind_debug",
+      "purpose": "Verify the environment-backed debug setting satisfies the explicit rule while preserving listener and port."
+    },
+    "bind_debug": {
+      "path": "dockerized_labs/broken_auth_lab/app.py",
+      "lines": [
+        123
+      ],
+      "rule_suffixes": [
+        "avoid_app_run_with_bad_host",
+        "debug-enabled"
+      ],
+      "expected": 2,
+      "original_status": "failed",
+      "purpose": "Verify a missing deployment dependency triggers a typed no-write replan and persisted authorization before a complete coupled repair."
+    }
+  }
+}

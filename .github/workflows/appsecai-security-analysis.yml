@@ -1,9 +1,21 @@
-name: AppSecAI Security Analysis
+name: AppSecAI Targeted Retest
+run-name: "Targeted ${{ inputs.case }} / submit=${{ inputs.submit }}"
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main, master]
+    inputs:
+      submit:
+        description: Submit the verified selected case to production
+        type: boolean
+        required: true
+        default: false
+      case:
+        description: Original-run failure family
+        type: choice
+        required: true
+        options:
+          - debug_only
+          - bind_debug
 
 permissions:
   contents: read
@@ -20,22 +32,59 @@ jobs:
       AUTO_CREATE_PRS: "true"
       GROUPING_ENABLED: "true"
       GROUPING_STRATEGY: smart
+      GROUPING_STAGE: pre_remediation
+      MAX_VULNERABILITIES_PER_PR: "10"
+      AUTO_REMEDIATE: "true"
+      API_URL: https://gh.cloud.appsecai.io
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: 0
 
+      - name: Verify original application source is unchanged
+        run: |
+          set -euo pipefail
+          baseline="$(jq -er '.baseline_commit' targeted-retest-cases.json)"
+          git diff --exit-code "$baseline" -- dockerized_labs
+
       - name: Download OpenGrep
         run: |
-          curl -sL "https://github.com/opengrep/opengrep/releases/download/${OPENGREP_VERSION}/opengrep_manylinux_x86" -o opengrep
+          set -euo pipefail
+          curl --max-time 120 -fLsS "https://github.com/opengrep/opengrep/releases/download/${OPENGREP_VERSION}/opengrep_manylinux_x86" -o opengrep
+          echo 'dbda2cd3225278cbffb37231ece1900d7022481edfaeb04e0bedb54046945dd3  opengrep' | sha256sum -c -
           chmod +x opengrep
 
-      - name: Run OpenGrep
+      - name: Scan the unchanged source and select one failure family
+        env:
+          CASE_ID: ${{ inputs.case }}
         run: |
-          ./opengrep scan --sarif --sarif-output=opengrep-results.sarif --config auto . || true
+          set -euo pipefail
+          target="$(jq -er --arg case "$CASE_ID" '.cases[$case].path' targeted-retest-cases.json)"
+          ./opengrep scan --sarif --sarif-output=full-scan.sarif --config auto "$target"
+          python3 select-targeted-findings.py "$CASE_ID" full-scan.sarif opengrep-results.sarif
 
-      - name: AppSecAI Security Analysis
-        uses: AppSecureAI/automation-action@v1
-        with:
-          file: opengrep-results.sarif
+      - name: Submit to AppSecAI with remediation enabled
+        if: inputs.submit
+        shell: bash
+        run: |
+          set -euo pipefail
+          token_response="$(curl -fsS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            --get --data-urlencode "audience=${API_URL}" "${ACTIONS_ID_TOKEN_REQUEST_URL}")"
+          token="$(jq -er '.value' <<<"${token_response}")"
+          body="$(mktemp)"
+          http="$(curl -sS -o "$body" -w '%{http_code}' -X POST "${API_URL}/api-product/submit" \
+            -H "Authorization: Bearer ${token}" \
+            -F 'file=@opengrep-results.sarif;type=application/sarif+json' \
+            -F "processing_mode=${PROCESSING_MODE}" \
+            -F "grouping_strategy=${GROUPING_STRATEGY}" \
+            -F "grouping_stage=${GROUPING_STAGE}" \
+            -F "max_vulnerabilities_per_pr=${MAX_VULNERABILITIES_PER_PR}" \
+            -F "auto_remediate=${AUTO_REMEDIATE}" \
+            -F "auto_create_prs=${AUTO_CREATE_PRS}" \
+            -F 'comment_modification_mode=basic')"
+          if [[ "${http}" != 2* ]]; then
+            echo "submit_http=${http} response=$(jq -c '{detail, error_code}' "$body" 2>/dev/null)"
+            exit 1
+          fi
+          echo "submit_http=${http} run_id=$(jq -er '.run_id' "$body") organization_id=$(jq -er '.organization_id' "$body")"
