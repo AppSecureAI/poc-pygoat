@@ -6,7 +6,7 @@ import yaml
 from flask import Flask, jsonify, request
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "ledger-signing-key-2024"
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", os.urandom(32))
 
 DATABASE = os.path.join(os.path.dirname(__file__), "ledger.db")
 
