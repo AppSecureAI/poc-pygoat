@@ -1,9 +1,12 @@
 """Exercise the actual forms without depending on their serialization format."""
 import importlib.util
+import base64
+import json
 from html.parser import HTMLParser
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
 
 
 class PageContent(HTMLParser):
@@ -89,9 +92,47 @@ class SerializationRoundTripTests(unittest.TestCase):
 
     def test_malformed_payload_returns_an_application_error(self):
         """Malformed input remains a handled response rather than a server crash."""
-        response = self.client.post("/deserialize", data={"serialized_data": "not valid data"})
+        with self.assertLogs(self.client.application.logger, level="WARNING") as logs:
+            response = self.client.post("/deserialize", data={"serialized_data": "not valid data"})
         self.assertIn(response.status_code, (200, 400))
+        self.assertIn("Error: Invalid user data", response.get_data(as_text=True))
+        self.assertEqual([record.getMessage() for record in logs.records],
+                         ["Invalid user data submitted for deserialization"])
+
+    def test_pickle_payload_is_not_executed(self):
+        """Executable pickle instructions remain inert input."""
+        payload = base64.b64encode(b"cbuiltins\nprint\n(S'deserialization executed'\ntR.").decode()
+        with patch("builtins.print") as output:
+            response = self.client.post("/deserialize", data={"serialized_data": payload})
+        output.assert_not_called()
+        self.assertEqual(response.status_code, 200)
         self.assertIn("Error", response.get_data(as_text=True))
+
+    def test_invalid_user_fields_are_rejected(self):
+        """JSON values must describe a user with the expected field types."""
+        for value in ([], {}, {"username": []}, {"username": "alice", "is_admin": "false"}):
+            with self.subTest(value=value):
+                payload = base64.b64encode(json.dumps(value).encode()).decode()
+                response = self.client.post("/deserialize", data={"serialized_data": payload})
+                self.assertEqual(response.status_code, 200)
+                self.assertIn("Invalid user data", response.get_data(as_text=True))
+
+    def test_unsupported_fields_do_not_disclose_input(self):
+        """Unsupported fields cannot appear in responses or warning logs."""
+        field = "private-field\r\nforged-log-entry"
+        payload = base64.b64encode(json.dumps({"username": "alice", field: "private-value"}).encode()).decode()
+        with self.assertLogs(self.client.application.logger, level="WARNING") as logs:
+            response = self.client.post("/deserialize", data={"serialized_data": payload})
+        self.assertEqual(response.status_code, 200)
+        page = PageContent()
+        page.feed(response.get_data(as_text=True))
+        text = "".join(page.text)
+        self.assertIn("Invalid user data", text)
+        self.assertNotIn("private-field", text)
+        self.assertNotIn("private-value", text)
+        self.assertNotIn("TypeError", text)
+        self.assertEqual([record.getMessage() for record in logs.records],
+                         ["Invalid user data submitted for deserialization"])
 
 
 if __name__ == "__main__":
