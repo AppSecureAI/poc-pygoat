@@ -42,10 +42,9 @@ jobs:
           import json, os, re, sys
           from pathlib import Path
           data = json.loads(Path(sys.argv[1]).read_text())
-          allowed = {'not_started', 'pending', 'queued', 'running', 'in_progress', 'started', 'completed', 'complete', 'completed_with_warnings', 'failed', 'cancelled', 'paused', 'skipped', 'success', 'inconclusive', 'waiting', 'not_run', 'stopped'}
           def status(value):
               if value is None: return None
-              if not isinstance(value, str) or value.lower() not in allowed: raise ValueError('unexpected status scalar')
+              if not isinstance(value, str) or not re.fullmatch(r'[A-Za-z][A-Za-z_ -]{0,63}', value): raise ValueError('unexpected status scalar')
               return value
           summary = data.get('summary') or {}
           counts = {}
