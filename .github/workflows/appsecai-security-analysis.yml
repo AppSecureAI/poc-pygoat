@@ -1,97 +1,72 @@
-name: AppSecAI Targeted Retest
-run-name: "Targeted ${{ inputs.case }} / submit=${{ inputs.submit }}"
-
+name: AppSecAI Read-only Run Status
+run-name: "Read-only status ${{ inputs.run_id }}"
 on:
   workflow_dispatch:
     inputs:
-      submit:
-        description: Submit the verified selected case to production
-        type: boolean
+      run_id:
+        description: Existing run to observe; never submits or retries work
+        type: string
         required: true
-        default: false
-      case:
-        description: Original-run failure family
-        type: choice
+      organization_id:
+        description: Organization owning the existing run
+        type: string
         required: true
-        options:
-          - bind_debug
-          - ledger_secret
-          - unscheduled_sql
-          - secure_cookie
-          - deserialize
-          - ledger_eval
-          - broader_auth
-          - broader_deserialize
-          - broader_ledger
-
 permissions:
   contents: read
   id-token: write
-
-env:
-  OPENGREP_VERSION: "v1.16.1"
-
 jobs:
-  analyze:
+  observe:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     env:
-      PROCESSING_MODE: group_cc
-      AUTO_CREATE_PRS: "true"
-      GROUPING_ENABLED: "true"
-      GROUPING_STRATEGY: smart
-      GROUPING_STAGE: pre_remediation
-      MAX_VULNERABILITIES_PER_PR: "10"
-      AUTO_REMEDIATE: "true"
       API_URL: https://gh.cloud.appsecai.io
+      RUN_ID: ${{ inputs.run_id }}
+      ORGANIZATION_ID: ${{ inputs.organization_id }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-        with:
-          fetch-depth: 0
-
-      - name: Verify original application source is unchanged
-        run: |
-          set -euo pipefail
-          baseline="$(jq -er '.baseline_commit' targeted-retest-cases.json)"
-          git diff --exit-code "$baseline" -- dockerized_labs
-
-      - name: Download OpenGrep
-        run: |
-          set -euo pipefail
-          curl --max-time 120 -fLsS "https://github.com/opengrep/opengrep/releases/download/${OPENGREP_VERSION}/opengrep_manylinux_x86" -o opengrep
-          echo 'dbda2cd3225278cbffb37231ece1900d7022481edfaeb04e0bedb54046945dd3  opengrep' | sha256sum -c -
-          chmod +x opengrep
-
-      - name: Scan the unchanged source and select one failure family
-        env:
-          CASE_ID: ${{ inputs.case }}
-        run: |
-          set -euo pipefail
-          target="$(jq -er --arg case "$CASE_ID" '.cases[$case].path' targeted-retest-cases.json)"
-          ./opengrep scan --sarif --sarif-output=full-scan.sarif --config auto "$target"
-          python3 select-targeted-findings.py "$CASE_ID" full-scan.sarif opengrep-results.sarif
-
-      - name: Submit to AppSecAI with remediation enabled
-        if: inputs.submit
+      - name: Read existing run through customer status API
         shell: bash
         run: |
           set -euo pipefail
-          token_response="$(curl -fsS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+          [[ "$RUN_ID" =~ ^[0-9a-f]{24}$ ]]
+          [[ "$ORGANIZATION_ID" =~ ^[0-9a-f]{24}$ ]]
+          token_response="$(curl --max-time 30 -fsS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
             --get --data-urlencode "audience=${API_URL}" "${ACTIONS_ID_TOKEN_REQUEST_URL}")"
-          token="$(jq -er '.value' <<<"${token_response}")"
+          token="$(jq -er '.value' <<<"$token_response")"
           body="$(mktemp)"
-          http="$(curl -sS -o "$body" -w '%{http_code}' -X POST "${API_URL}/api-product/submit" \
+          trap 'rm -f "$body"' EXIT
+          http="$(curl --max-time 60 -sS -o "$body" -w '%{http_code}' \
             -H "Authorization: Bearer ${token}" \
-            -F 'file=@opengrep-results.sarif;type=application/sarif+json' \
-            -F "processing_mode=${PROCESSING_MODE}" \
-            -F "grouping_strategy=${GROUPING_STRATEGY}" \
-            -F "grouping_stage=${GROUPING_STAGE}" \
-            -F "max_vulnerabilities_per_pr=${MAX_VULNERABILITIES_PER_PR}" \
-            -F "auto_remediate=${AUTO_REMEDIATE}" \
-            -F "auto_create_prs=${AUTO_CREATE_PRS}" \
-            -F 'comment_modification_mode=basic')"
-          if [[ "${http}" != 2* ]]; then
-            echo "submit_http=${http} response=$(jq -c '{detail, error_code}' "$body" 2>/dev/null)"
-            exit 1
-          fi
-          echo "submit_http=${http} run_id=$(jq -er '.run_id' "$body") organization_id=$(jq -er '.organization_id' "$body")"
+            "${API_URL}/api-product/organizations/${ORGANIZATION_ID}/runs/${RUN_ID}/status")"
+          [[ "$http" == 200 ]] || { echo "status_http=$http"; exit 1; }
+          python3 - "$body" <<'PYCODE'
+          import json, os, re, sys
+          from pathlib import Path
+          data = json.loads(Path(sys.argv[1]).read_text())
+          allowed = {'not_started', 'pending', 'queued', 'running', 'in_progress', 'started', 'completed', 'complete', 'completed_with_warnings', 'failed', 'cancelled', 'paused', 'skipped', 'success', 'inconclusive', 'waiting', 'not_run', 'stopped'}
+          def status(value):
+              if value is None: return None
+              if not isinstance(value, str) or value.lower() not in allowed: raise ValueError('unexpected status scalar')
+              return value
+          summary = data.get('summary') or {}
+          counts = {}
+          for key in ('total_vulnerabilities', 'true_positives', 'false_positives', 'needs_manual_review_count', 'handled_error_count', 'remediation_success', 'remediation_failed', 'pr_count', 'skipped_count', 'validation_failure_count', 'not_attempted_count', 'remediation_unit_failure_count', 'push_failed_count'):
+              value = summary.get(key)
+              if value is not None:
+                  if type(value) is not int or not 0 <= value <= 10000: raise ValueError('unexpected count')
+                  counts[key] = value
+          prs = summary.get('pr_urls') or []
+          if not isinstance(prs, list) or len(prs) > 50: raise ValueError('PR bound')
+          for url in prs:
+              if not isinstance(url, str) or not re.fullmatch(r'https://github[.]com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[0-9]+', url): raise ValueError('unexpected PR URL')
+          tracking = data.get('process_tracking') or {}
+          stages = {key: status((tracking.get(key) or {}).get('status')) for key in ('find_status', 'triage_status', 'remediate_status', 'validate_status', 'push_status', 'grouping_status', 'remediation_validation_loop_status', 'overall_status')}
+          results = data.get('results') or {}
+          stage_counts = {}
+          for key in ('find', 'triage', 'remediate', 'validate', 'push'):
+              item = results.get(key)
+              if item is not None:
+                  count = item.get('count')
+                  if type(count) is not int or not 0 <= count <= 10000: raise ValueError('unexpected stage count')
+                  stage_counts[key] = count
+          print('PUBLIC_RUN_STATUS_V1 '+json.dumps({'run_id': os.environ['RUN_ID'], 'organization_id': os.environ['ORGANIZATION_ID'], 'run_status': status(data.get('run_status')), 'summary_counts': counts, 'pr_urls': prs, 'stage_statuses': stages, 'stage_counts': stage_counts}, sort_keys=True))
+          PYCODE
