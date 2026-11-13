@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Serialization round trip</title><link rel="icon" href="data:,"></head>
+<body>
+  <h1>Serialization round trip</h1>
+  <form action="{{ url_for('serialize_data') }}" method="post">
+    <label for="username">Username</label>
+    <input id="username" name="username" value="guest">
+    <button type="submit">Serialize user</button>
+  </form>
+  <form action="{{ url_for('deserialize_data') }}" method="post">
+    <label for="serialized_data">Serialized data</label>
+    <textarea id="serialized_data" name="serialized_data"></textarea>
+    <button type="submit">Deserialize user</button>
+  </form>
+</body>
+</html>
