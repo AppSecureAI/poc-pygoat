@@ -87,7 +87,7 @@ jobs:
           trap 'rm -f "$body"' EXIT
           http="$(curl --max-time 90 -sS -o "$body" -w '%{http_code}' \
             -H "Authorization: Bearer ${token}" \
-            "${API_URL}/api-product/organizations/${ORGANIZATION_ID}/runs/${RUN_ID}/results?format=json&view=customer&include_fixed_code=false&include_narrative_audit=false")"
+            "${API_URL}/api-product/runs/${RUN_ID}/results?organization_id=${ORGANIZATION_ID}&format=json&view=customer&include_fixed_code=false&include_narrative_audit=false")"
           [[ "$http" == 200 ]] || { echo "results_http=$http"; exit 1; }
           python3 - "$body" <<'PYRESULT'
           import json, os, re, sys
