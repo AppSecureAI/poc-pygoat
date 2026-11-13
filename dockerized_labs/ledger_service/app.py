@@ -20,7 +20,7 @@ def get_db():
 @app.route("/accounts/<owner>")
 def account_lookup(owner):
     rows = get_db().execute(
-        "SELECT id, owner, balance FROM accounts WHERE owner = '%s'" % owner
+        "SELECT id, owner, balance FROM accounts WHERE owner = ?", (owner,)
     ).fetchall()
     return jsonify([dict(row) for row in rows])
 
