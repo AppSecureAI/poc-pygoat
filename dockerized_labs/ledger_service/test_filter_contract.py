@@ -1,5 +1,6 @@
 """Exercise the public filter route without depending on its evaluator implementation."""
 import importlib.util
+import json
 from pathlib import Path
 import sys
 import unittest
@@ -77,6 +78,55 @@ class FilterSecurityTests(FilterApplicationTestCase):
     def test_attribute_access_is_rejected(self):
         response = self.client.post("/filters", data={"filters": "().__class__.__name__"})
         self.assertIn(response.status_code, (400, 422))
+
+
+class FilterLimitsTests(FilterApplicationTestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.profile = json.loads(Path(__file__).with_name("filter_contract.json").read_text())
+
+    def assert_rejected(self, expression):
+        response = self.client.post("/filters", data={"filters": expression})
+        self.assertEqual(response.status_code, 400)
+        body = response.get_json()
+        self.assertIsInstance(body, dict)
+        self.assertEqual(set(body), {"error"})
+        self.assertIsInstance(body["error"], str)
+        self.assertTrue(body["error"].strip())
+        self.assertNotIn(expression, body["error"])
+
+    def test_expression_character_boundary_is_supported(self):
+        self.assert_filter("1" + " " * (self.profile["max_expression_characters"] - 1), 1)
+
+    def test_expression_character_overflow_is_rejected(self):
+        self.assert_rejected("1" + " " * self.profile["max_expression_characters"])
+
+    def test_ast_node_boundary_is_supported(self):
+        # Expression, List and Load contribute three nodes besides the constants.
+        count = self.profile["max_ast_nodes"] - 3
+        self.assert_filter("[" + ",".join(["0"] * count) + "]", [0] * count)
+
+    def test_ast_node_overflow_is_rejected(self):
+        count = self.profile["max_ast_nodes"] - 2
+        self.assert_rejected("[" + ",".join(["0"] * count) + "]")
+
+    def test_depth_boundary_is_supported(self):
+        depth = self.profile["max_depth"]
+        expected = 1
+        for _ in range(depth):
+            expected = [expected]
+        self.assert_filter("[" * depth + "1" + "]" * depth, expected)
+
+    def test_depth_overflow_is_rejected(self):
+        depth = self.profile["max_depth"] + 1
+        self.assert_rejected("[" * depth + "1" + "]" * depth)
+
+    def test_integer_bit_overflow_is_rejected(self):
+        self.assert_rejected("2 ** " + str(self.profile["max_integer_bits"]))
+
+    def test_expansion_budget_is_enforced_before_repetition(self):
+        self.assert_rejected("['x'] * " + str(self.profile["max_expansion_units"] * 2))
 
 
 if __name__ == "__main__":

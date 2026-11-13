@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "max_expression_characters": 65536,
+  "max_ast_nodes": 1024,
+  "max_depth": 64,
+  "max_integer_bits": 4096,
+  "max_expansion_units": 65536
+}
