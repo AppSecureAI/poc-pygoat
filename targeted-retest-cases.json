@@ -1,5 +1,5 @@
 {
-  "baseline_commit": "2b64dea85d1b0a5c6262064995da46043c1ad53c",
+  "baseline_commit": "20979a1cd207f455bba1bbb27cfbab6610bba120",
   "original_run": "6af32e5530750fa8fa39e0ec",
   "cases": {
     "bind_debug": {
@@ -78,6 +78,64 @@
       "expected": 3,
       "original_status": "failed",
       "purpose": "Preserve legitimate expression behavior; genuine regressions stay rejected"
+    },
+    "broader_auth": {
+      "path": "dockerized_labs/broken_auth_lab/app.py",
+      "lines": [
+        49,
+        51,
+        123
+      ],
+      "rule_suffixes": [
+        "secure-set-cookie",
+        "avoid_app_run_with_bad_host",
+        "debug-enabled"
+      ],
+      "expected": 4,
+      "purpose": "Broader unchanged-original application cohort; compare all original application findings and actual multi-unit composition under installed worker fixes"
+    },
+    "broader_deserialize": {
+      "path": "dockerized_labs/insec_des_lab/main.py",
+      "lines": [
+        27,
+        36,
+        51
+      ],
+      "rule_suffixes": [
+        "insecure-deserialization",
+        "avoid-pickle",
+        "avoid_app_run_with_bad_host"
+      ],
+      "expected": 5,
+      "purpose": "Broader unchanged-original application cohort; compare all original application findings and actual multi-unit composition under installed worker fixes"
+    },
+    "broader_ledger": {
+      "path": "dockerized_labs/ledger_service/app.py",
+      "lines": [
+        9,
+        22,
+        23,
+        24,
+        30,
+        37,
+        43
+      ],
+      "rule_suffixes": [
+        "avoid_hardcoded_config_SECRET_KEY",
+        "formatted-sql-query",
+        "sqlalchemy-execute-raw-query",
+        "tainted-sql-string",
+        "user-eval",
+        "eval-injection",
+        "eval-detected",
+        "subprocess-injection",
+        "dangerous-subprocess-use",
+        "subprocess-shell-true",
+        "insecure-deserialization",
+        "avoid-pyyaml-load"
+      ],
+      "expected": 12,
+      "purpose": "Broader unchanged-original application cohort; compare all original application findings and actual multi-unit composition under installed worker fixes"
     }
   }
 }

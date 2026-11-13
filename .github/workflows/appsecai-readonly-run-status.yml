@@ -1,0 +1,72 @@
+name: AppSecAI Read-only Run Status
+run-name: "Read-only status ${{ inputs.run_id }}"
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Existing run to observe; never submits or retries work
+        type: string
+        required: true
+      organization_id:
+        description: Organization owning the existing run
+        type: string
+        required: true
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API_URL: https://gh.cloud.appsecai.io
+      RUN_ID: ${{ inputs.run_id }}
+      ORGANIZATION_ID: ${{ inputs.organization_id }}
+    steps:
+      - name: Read existing run through customer status API
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RUN_ID" =~ ^[0-9a-f]{24}$ ]]
+          [[ "$ORGANIZATION_ID" =~ ^[0-9a-f]{24}$ ]]
+          token_response="$(curl --max-time 30 -fsS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            --get --data-urlencode "audience=${API_URL}" "${ACTIONS_ID_TOKEN_REQUEST_URL}")"
+          token="$(jq -er '.value' <<<"$token_response")"
+          body="$(mktemp)"
+          trap 'rm -f "$body"' EXIT
+          http="$(curl --max-time 60 -sS -o "$body" -w '%{http_code}' \
+            -H "Authorization: Bearer ${token}" \
+            "${API_URL}/api-product/organizations/${ORGANIZATION_ID}/runs/${RUN_ID}/status")"
+          [[ "$http" == 200 ]] || { echo "status_http=$http"; exit 1; }
+          python3 - "$body" <<'PYCODE'
+          import json, os, re, sys
+          from pathlib import Path
+          data = json.loads(Path(sys.argv[1]).read_text())
+          allowed = {'not_started', 'pending', 'queued', 'running', 'in_progress', 'started', 'completed', 'complete', 'completed_with_warnings', 'failed', 'cancelled', 'paused', 'skipped', 'success', 'inconclusive', 'waiting', 'not_run', 'stopped'}
+          def status(value):
+              if value is None: return None
+              if not isinstance(value, str) or value.lower() not in allowed: raise ValueError('unexpected status scalar')
+              return value
+          summary = data.get('summary') or {}
+          counts = {}
+          for key in ('total_vulnerabilities', 'true_positives', 'false_positives', 'needs_manual_review_count', 'handled_error_count', 'remediation_success', 'remediation_failed', 'pr_count', 'skipped_count', 'validation_failure_count', 'not_attempted_count', 'remediation_unit_failure_count', 'push_failed_count'):
+              value = summary.get(key)
+              if value is not None:
+                  if type(value) is not int or not 0 <= value <= 10000: raise ValueError('unexpected count')
+                  counts[key] = value
+          prs = summary.get('pr_urls') or []
+          if not isinstance(prs, list) or len(prs) > 50: raise ValueError('PR bound')
+          for url in prs:
+              if not isinstance(url, str) or not re.fullmatch(r'https://github[.]com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[0-9]+', url): raise ValueError('unexpected PR URL')
+          tracking = data.get('process_tracking') or {}
+          stages = {key: status((tracking.get(key) or {}).get('status')) for key in ('find_status', 'triage_status', 'remediate_status', 'validate_status', 'push_status', 'grouping_status', 'remediation_validation_loop_status', 'overall_status')}
+          results = data.get('results') or {}
+          stage_counts = {}
+          for key in ('find', 'triage', 'remediate', 'validate', 'push'):
+              item = results.get(key)
+              if item is not None:
+                  count = item.get('count')
+                  if type(count) is not int or not 0 <= count <= 10000: raise ValueError('unexpected stage count')
+                  stage_counts[key] = count
+          print('PUBLIC_RUN_STATUS_V1 '+json.dumps({'run_id': os.environ['RUN_ID'], 'organization_id': os.environ['ORGANIZATION_ID'], 'run_status': status(data.get('run_status')), 'summary_counts': counts, 'pr_urls': prs, 'stage_statuses': stages, 'stage_counts': stage_counts}, sort_keys=True))
+          PYCODE

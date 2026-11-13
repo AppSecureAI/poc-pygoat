@@ -20,6 +20,9 @@ on:
           - secure_cookie
           - deserialize
           - ledger_eval
+          - broader_auth
+          - broader_deserialize
+          - broader_ledger
 
 permissions:
   contents: read
