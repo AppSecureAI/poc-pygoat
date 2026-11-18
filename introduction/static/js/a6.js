@@ -2,6 +2,7 @@ event5 = function(){
     var code = document.getElementById('a6_t1').value
     var myHeaders = new Headers();
     var formdata = new FormData();
+    formdata.append("csrfmiddlewaretoken", document.querySelector('[name=csrfmiddlewaretoken]').value);
 
     formdata.append("code", code);
     var requestOptions = {
