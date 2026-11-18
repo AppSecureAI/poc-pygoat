@@ -34,6 +34,8 @@ docker-compose up --build
 
 2. Access the lab at http://localhost:8080
 
+Compose publishes the lab only on the Docker host's loopback interface. Recreate existing containers with `docker-compose up --build --force-recreate` to apply the port binding.
+
 ### Manual Setup
 
 1. Create a virtual environment:
@@ -53,6 +55,8 @@ pip install -r requirements.txt
 ```bash
 python main.py
 ```
+
+Manual execution binds to `127.0.0.1` by default. Set `FLASK_RUN_HOST` only when a different interface is required; the Docker image already sets it to `0.0.0.0` for container networking. Keep published ports restricted to loopback when running the image directly.
 
 ## Lab Structure
 
