@@ -19,7 +19,6 @@ from .views import authentication_decorator
 # 2. extract inputs form 2nd code 
 # 3. Run the code 
 # 4. get the result
-@csrf_exempt
 def ssrf_code_checker(request):
     if request.user.is_authenticated:
         if request.method == 'POST':
@@ -56,7 +55,6 @@ def ssrf_code_checker(request):
 # Insufficient Logging & Monitoring
 
 
-@csrf_exempt
 # @authentication_decorator
 def log_function_checker(request):
     if request.method == 'POST':
@@ -122,7 +120,6 @@ def A6_disscussion_api(request):
     except Exception as e:
         return JsonResponse({"message":"failure"},status = 400)
 
-@csrf_exempt
 def A6_disscussion_api_2(request):
     if request.method != 'POST':
         return JsonResponse({"message":"method not allowed"},status = 405)

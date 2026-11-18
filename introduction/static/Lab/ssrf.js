@@ -60,6 +60,7 @@ function checkcode(){
     var html_code = document.getElementById('html').value
 
     var formdata = new FormData();
+    formdata.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
     formdata.append('python_code', python_code);
     formdata.append('html_code', html_code);
     var requestOptions = {

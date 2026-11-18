@@ -7,6 +7,7 @@
 {% load static %}
 
 <div style="display: flex;flex-direction: column;align-items: center;">
+    {% csrf_token %}
     <h3 style="font-size: 2rem;"> In this coding ground we will create a secure logging function </h3>
     <button id="a9_b1" class="button2 button--winona button--border-thick button--round-l button--text-upper button--size-s button--text-thick" data-text="Lets go" onclick=event1()>
         <span>Lets go</span>
