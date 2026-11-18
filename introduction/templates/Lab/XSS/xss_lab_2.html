@@ -17,7 +17,7 @@
             </button>
 </form>
 <br>
-<p>Hello, {{ username|safe }}</p>
+<p>Hello, {{ username|force_escape }}</p>
 <script>
   function setCookie(name, value) {
     document.cookie = name + "=" + value + ";path=/;";
