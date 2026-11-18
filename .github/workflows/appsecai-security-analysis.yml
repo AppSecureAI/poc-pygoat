@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PROCESSING_MODE: group_cc
-      AUTO_CREATE_PRS: "true"
+      AUTO_CREATE_PRS: "false"
       GROUPING_ENABLED: "true"
       GROUPING_STRATEGY: smart
       GROUPING_STAGE: pre_remediation
