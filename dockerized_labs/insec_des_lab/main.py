@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, make_response
+import os
 import pickle
 import base64
 from dataclasses import dataclass
@@ -48,6 +49,6 @@ def deserialize_data():
         return render_template('result.html', message=f"Error: {str(e)}")
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
+    app.run(host=os.environ.get('FLASK_RUN_HOST') or '127.0.0.1', port=8080)
 
     
