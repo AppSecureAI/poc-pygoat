@@ -10,7 +10,6 @@ This is a deliberately vulnerable web application that demonstrates common authe
 4. Vulnerable "Remember Me" Functionality
 5. Predictable Password Reset Tokens
 6. No Brute Force Protection
-7. Debug Mode Enabled in Production
 
 ## Setup Instructions
 
@@ -27,6 +26,10 @@ This is a deliberately vulnerable web application that demonstrates common authe
    docker-compose up --build
    ```
 4. Access the lab at http://localhost:5000
+
+Compose publishes port 5000 only on the Docker host's loopback interface; direct access from other machines is disabled. The application keeps its container listener on `0.0.0.0:5000` so Docker port forwarding works, with debug mode disabled. When running the image directly, publish it with `-p 127.0.0.1:5000:5000` as well.
+
+`FLASK_DEBUG` defaults to disabled when running `app.py`; only `1` or `true` (case-insensitive) enables debugging, and all other values disable it. Compose explicitly sets `FLASK_DEBUG=0`. Local development, CI, and deployments need no additional configuration to keep debugging disabled. Enable debugging only for trusted local development by setting this variable in the process environment, or overriding the service environment when using Compose. Never enable debugging on an exposed service.
 
 ### Default Credentials
 
