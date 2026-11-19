@@ -16,10 +16,10 @@ jobs:
   analyze:
     runs-on: ubuntu-latest
     env:
-      PROCESSING_MODE: group_cc
+      # Pre-publish test of submit-run-action v1.2.1: individual remediation, auto-remediate unset.
+      PROCESSING_MODE: individual_cc
       AUTO_CREATE_PRS: "true"
-      GROUPING_ENABLED: "true"
-      GROUPING_STRATEGY: smart
+      GROUPING_ENABLED: "false"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -36,6 +36,6 @@ jobs:
           ./opengrep scan --sarif --sarif-output=opengrep-results.sarif --config auto . || true
 
       - name: AppSecAI Security Analysis
-        uses: AppSecureAI/automation-action@v1
+        uses: AppSecureAI/submit-run-action@v1.2.1
         with:
           file: opengrep-results.sarif
