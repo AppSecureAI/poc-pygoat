@@ -3,9 +3,11 @@ import hashlib
 import json
 from datetime import datetime, timedelta
 import base64
+import os
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'  # Vulnerable: Hardcoded secret key
+app.config['SESSION_COOKIE_SECURE'] = True
 
 # Vulnerable: Storing user data in memory
 users = {
@@ -46,9 +48,9 @@ def login():
         
         if remember_me:
             # Vulnerable: Insecure "Remember Me" implementation
-            response.set_cookie('session', session_token, max_age=30*24*60*60)
+            response.set_cookie('session', session_token, max_age=30*24*60*60, secure=app.config['SESSION_COOKIE_SECURE'], httponly=True, samesite='Lax')
         else:
-            response.set_cookie('session', session_token)
+            response.set_cookie('session', session_token, secure=app.config['SESSION_COOKIE_SECURE'], httponly=True, samesite='Lax')
             
         return response
     
@@ -120,4 +122,8 @@ def dashboard():
     return redirect(url_for('lab'))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)  # Vulnerable: Debug mode enabled in production 
+    cert_file = os.environ.get('TLS_CERT_FILE')
+    key_file = os.environ.get('TLS_KEY_FILE')
+    if not cert_file or not key_file:
+        raise RuntimeError('TLS_CERT_FILE and TLS_KEY_FILE must specify a TLS certificate and private key')
+    app.run(host='0.0.0.0', port=5000, debug=True, ssl_context=(cert_file, key_file))  # Vulnerable: Debug mode enabled in production 
