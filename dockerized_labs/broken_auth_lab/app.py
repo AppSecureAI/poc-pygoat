@@ -45,10 +45,10 @@ def login():
         session_token = base64.b64encode(f"{username}:{datetime.now()}".encode()).decode()
         
         if remember_me:
-            # Vulnerable: Insecure "Remember Me" implementation
-            response.set_cookie('session', session_token, max_age=30*24*60*60)
+            # Preserve the session for "Remember Me" logins
+            response.set_cookie('session', session_token, max_age=30*24*60*60, secure=True, httponly=True, samesite='Lax')
         else:
-            response.set_cookie('session', session_token)
+            response.set_cookie('session', session_token, secure=True, httponly=True, samesite='Lax')
             
         return response
     
@@ -120,4 +120,4 @@ def dashboard():
     return redirect(url_for('lab'))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)  # Vulnerable: Debug mode enabled in production 
+    app.run(host='0.0.0.0', port=5000, debug=True, ssl_context='adhoc')  # Vulnerable: Debug mode enabled in production 
